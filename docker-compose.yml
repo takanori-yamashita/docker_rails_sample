@@ -1,0 +1,66 @@
+version: "2"
+services:
+  datastore:
+    image: busybox
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - bundle_install:/app/vendor/bundle
+      - bundle:/app/.bundle
+      - node_modules:/app/node_modules
+      - "bundle:/usr/local/bundle"
+
+  mysql:
+    image: "mysql:5.7.26"
+    environment:
+      TZ: "Asia/Tokyo"
+      MYSQL_ROOT_PASSWORD: password
+    ports:
+      - '3306:3306'
+    volumes:
+      - ./docker/mysql/conf.d:/etc/mysql/conf.d
+    volumes_from:
+      - datastore
+    command: mysqld --character-set-server=utf8mb4
+
+  app: &app
+    build:
+      context: .
+      dockerfile: Dockerfile.lcl
+    ports:
+      - '3000:3000'
+    env_file:
+      - "./.env.lcl"
+    environment:
+      TZ: "Asia/Tokyo"
+      RAILS_ENV: local
+    depends_on:
+      - mysql
+    networks:
+      - default
+    volumes:
+      - .:/app:cached
+    volumes_from:
+      - datastore
+    command: bundle exec rails s -b 0.0.0.0
+    tty: true
+    stdin_open: true
+
+  spring:
+    <<: *app
+    depends_on:
+      - app
+    ports: []
+    command: bundle exec spring server
+    tty: false
+    stdin_open: false
+    pid: host
+
+volumes:
+  mysql-data:
+    driver: local
+  bundle_install:
+    driver: local
+  bundle:
+    driver: local
+  node_modules:
+    driver: local
